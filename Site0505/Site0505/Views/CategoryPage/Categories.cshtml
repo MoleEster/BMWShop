@@ -1,0 +1,12 @@
+﻿@model CategoryPageViewModel
+
+<div>
+    @{
+        foreach (Vehicle vehicle in Model.Vehicles)
+        {
+
+            @Html.Partial("Vehicle", vehicle)
+            <hr />
+        }
+    }
+</div> 

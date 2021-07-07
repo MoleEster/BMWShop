@@ -1,0 +1,18 @@
+﻿
+<head>
+    <link rel="stylesheet" type="text/css" href="~/css/StyleHome.css" />
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+</head>
+<div>
+    <h2>Регистрация</h2>
+    @using (Html.BeginForm("Register", "RegistryPage"))
+    {
+        <h3>Email</h3>
+        <input id="email" name="email"><br>
+        <h3>Пароль</h3>
+        <input id="password" name="password"><br>
+        <div class="pull-right">
+            <input type="submit" class="btn btn-success" value="Войти" />
+        </div>
+    }
+</div>

@@ -1,0 +1,26 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <link rel="stylesheet" type="text/css" href="~/css/StyleHome.css" />
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+</head>
+<body>
+        <div id="header" class="header">
+            <div class="grey-border-header">
+                <h2 class="header-item"><a href="#popup_1" class="popup-link">Автомобили</a></h2>
+                <h2 class="header-item"><a>Покупка</a></h2>
+                <h2 class="header-item"><a>Владельцам</a></h2>
+                <h2 class="header-item"><a>BMW с пробегом</a></h2>
+                <h2 class="header-item"><a>BMW Россия</a></h2>
+                <h2 class="header-item"><a>Владельцам</a></h2>
+                <div class="header-item">
+                    <img class="icon-search" src="~/img/search-solid.svg" />
+                </div>
+            </div>
+        </div>
+        <div class="main">
+            @RenderBody()
+        </div>
+    </body>
+</html>
