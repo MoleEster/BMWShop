@@ -1,0 +1,35 @@
+.ds2-visualizer-multifield--inline {
+    margin-bottom: 0;
+}
+
+.ds2-visualizer-multifield--inline .coral-Form-fieldset {
+    margin-left: 2.375rem;
+}
+.ds2-visualizer-multifield--inline .coral3-Switch {
+    position: absolute;
+    left: 0;
+}
+.ds2-visualizer-multifield--inline coral-multifield-item-content > :first-child {
+    width: auto;
+}
+
+.ds2-vehicle-editor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+.ds2-vehicle-editor iframe {
+    border: 1px solid #e6e6e6;
+}
+
+.ds2-visualizer--label {
+    display: block;
+    padding: .625rem;
+}
+
+.coral3-Switch.is-disabled ~ .ds2-visualizer--label {
+    color: #bebebe;
+}

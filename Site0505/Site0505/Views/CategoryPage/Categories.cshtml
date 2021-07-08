@@ -1,12 +1,16 @@
 ﻿@model CategoryPageViewModel
 
+    <head>
+        <meta name="viewport" content="width=device-width" />
+        <link rel="stylesheet" type="text/css" href="~/css/StyleVehicle.css" />
+    </head>
+
 <div>
     @{
         foreach (Vehicle vehicle in Model.Vehicles)
         {
 
             @Html.Partial("Vehicle", vehicle)
-            <hr />
         }
     }
 </div> 

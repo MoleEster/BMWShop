@@ -82,6 +82,9 @@ namespace Site0505.Migrations
                     b.Property<string>("Specifications")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("TopImg")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uniqueidentifier");
 

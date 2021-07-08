@@ -1,0 +1,756 @@
+if (typeof speedKitJSErrors === 'undefined') {
+    window.speedKitJSErrors = {};
+}
+
+!function() {
+    if (window !== window.top) {
+        return;
+    }
+
+    window.SpeedKit=window.SpeedKit||{};
+
+    SpeedKit.rumPlugins = [
+        {
+            key: 'pageType',
+            type: 'PiDimension',
+            on: onDataLayerReady,
+            set: function() {
+                var dl = window.dataLayer;
+                var pageType = dl.pages && dl.pages[0].page && dl.pages[0].page.attributes && dl.pages[0].page.attributes.template;
+                if (pageType) {
+                    return pageType.substring(pageType.lastIndexOf('/') + 1);
+                }
+            }
+        },
+        {
+            key: 'pageTypeEnabled',
+            type: 'PiDimension',
+            on: 'domInteractive',
+            set: function() {
+                var message = null;
+                try {
+                    var isEnabled = true
+                    if (window.speedKit && speedKit.enabledSites) {
+                        isEnabled = speedKit.enabledSites.some(function(rule) {
+                            if (!rule.pathname) {
+                                return false;
+                            }
+                            return rule.pathname.some(function(path) {
+                                if (typeof path !== "string") {
+                                    return path.test(location.pathname);
+                                }
+                                return location.pathname.indexOf(path) === 0;
+                            });
+                        });
+                    }
+                    var isDisabled = false;
+                    if (window.speedKit && speedKit.disabledSites) {
+                        isDisabled = speedKit.disabledSites.some(function(rule) {
+                            if (!rule.pathname) {
+                                return false;
+                            }
+                            return rule.pathname.some(function(path) {
+                                if (typeof path !== "string") {
+                                    return path.test(location.pathname);
+                                }
+                                return location.pathname.indexOf(path) === 0;
+                            });
+                        });
+                    }
+                    message = isEnabled && !isDisabled ? "true" :"false";
+                } catch (error) {
+                }
+                return message;
+            }
+        }
+    ];
+
+    var errors = window.speedKitJSErrors;
+
+    function onDomInteractive(cb) {
+        if (document.readyState !== 'loading') {
+            return setTimeout(cb, 0);
+        }
+        document.addEventListener('DOMContentLoaded', cb);
+    }
+
+    function onLoad(cb) {
+        if (document.readyState === 'complete') {
+            return setTimeout(cb, 0);
+        }
+        addEventListener('load', cb);
+    }
+
+    function onDataLayerReady(cb, controller) {
+        controller.onDOMInteractive(function() {
+            function init() {
+                var dl = window.dataLayer;
+                if (!dl) {
+                    tryTracking--;
+                    setTimeout(init, 500);
+                    return;
+                }
+                cb();
+            }
+            init();
+        });
+    }
+
+    function sendError(stackTrace, errorTime) {
+        var fl = stackTrace && stackTrace.split('\n')[0];
+        if (errors[fl]) {
+            return;
+        }
+        errors[fl] = true;
+
+        onLoad(function () {
+            // Send error after 1 second sleep
+            setTimeout(function () {
+                SpeedKit.track('jsError', stackTrace, errorTime);
+            }, 1000);
+        });
+    }
+
+    addEventListener('error', function (event) {
+        var errorTime = Date.now();
+        var stackTrace = event.message + '\n' + (event.error && event.error.stack);
+        // Send error after 3 second sleep
+        sendError(stackTrace, errorTime);
+    });
+
+    onDomInteractive(function () {
+        if (window.SpeedKit && SpeedKit.dynamicBlocks) {
+            if (SpeedKit.dynamicBlocks.errors.length > 0) {
+                var errors = SpeedKit.dynamicBlocks.errors.map(function(e) { return '' + e.message; }).join('\n');
+                SpeedKit.track('dynamicFetcherError', errors, SpeedKit.dynamicBlocks.errors.length);
+            }
+        }
+    });
+
+    addEventListener('unhandledrejection', function (event) {
+        var errorTime = Date.now();
+        var stackTrace = JSON.stringify(event);
+        if (event.reason) {
+            stackTrace = JSON.stringify(event.reason);
+            if (event.reason.stack) {
+                stackTrace = event.reason.message + '\n' + event.reason.stack;
+            }
+        }
+        sendError(stackTrace, errorTime);
+    });
+
+    function init() {
+        var dl = window.dataLayer;
+        if (!dl) {
+            setTimeout(init, 500);
+            return;
+        }
+        var pageType = dl && dl.pages && dl.pages[0].page && dl.pages[0].page.attributes && dl.pages[0].page.attributes.template;
+        if (pageType) {
+            pageType = pageType.substring(pageType.lastIndexOf('/') + 1);
+            SpeedKit.track("pageType", pageType, 0);
+        }
+    }
+
+    onDomInteractive(init);
+
+    //pageTypeEnabled tracking
+    setTimeout(function() {
+        try {
+            var isEnabled = true
+            if (window.speedKit && speedKit.enabledSites) {
+                speedKit.enabledSites.some(function(rule) {
+                    if (!rule.pathname) {
+                        return false;
+                    }
+                    return rule.pathname.some(function(path) {
+                        if (typeof path !== "string") {
+                            return path.test(location.pathname);
+                        }
+                        return location.pathname.indexOf(path) === 0;
+                    });
+                });
+            }
+            var isDisabled = false;
+            if (window.speedKit && speedKit.disabledSites) {
+                isDisabled = speedKit.disabledSites.some(function(rule) {
+                    if (!rule.pathname) {
+                        return false;
+                    }
+                    return rule.pathname.some(function(path) {
+                        if (typeof path !== "string") {
+                            return path.test(location.pathname);
+                        }
+                        return location.pathname.indexOf(path) === 0;
+                    });
+                });
+            }
+            SpeedKit.track('pageTypeEnabled', isEnabled && !isDisabled, 0);
+        } catch (error) {
+        }
+    });
+
+    // Largest Contentful Paint
+    setTimeout(function () {
+        try {
+            if (typeof PerformanceObserver === 'undefined') {
+                return;
+            }
+
+            var lcp = {};
+            var sent = false;
+
+            var po = new PerformanceObserver(function (list) {
+                var entries = list.getEntries();
+                var entry = entries[entries.length - 1];
+
+                lcp.time = entry.startTime;
+                lcp.url = entry.url;
+                lcp.id = entry.id;
+            });
+
+            po.observe({type: 'largest-contentful-paint', buffered: true});
+
+            addEventListener('visibilitychange', function fn() {
+                if (lcp.time && !sent && document.visibilityState === 'hidden') {
+                    SpeedKit.track('lcp', lcp.url || lcp.id, lcp.time);
+                    sent = true;
+                }
+            }, true);
+        } catch (e) {
+        }
+    }, 0);
+
+    function trackCLS() {
+        if (!window.PerformanceObserver || !PerformanceObserver.supportedEntryTypes || PerformanceObserver.supportedEntryTypes.indexOf('layout-shift') === -1) {
+            return;
+        }
+
+        var clsValue = 0;
+        var clsEntries = [];
+
+        var entryHandler = function (entry) {
+            // Only count layout shifts without recent user input.
+            if (!entry.hadRecentInput) {
+                clsValue += entry.value;
+                clsEntries.push(entry);
+            }
+        };
+
+        var po = new PerformanceObserver(function (l) {
+            l.getEntries().map(entryHandler);
+        });
+        po.observe({type: 'layout-shift', buffered: true});
+
+        addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') {
+                SpeedKit.track('cls', '' + clsEntries.length, clsValue);
+            }
+        }, {capture: true, once: true});
+    }
+
+    setTimeout(trackCLS, 0);
+
+    // Needed because the Firefox mobile throws 'Permission denied to access property "cancelable"' exception
+    try {
+        !function(){"use strict";var e,n,t,i,o,r,a,c,p,u,f,v;e=function(e,n){var t=n.timeStamp,i=t>1e12?t-performance.timing.navigationStart:Math.floor(t);"undefined"!=typeof SpeedKit&&SpeedKit.track("inputDelay",""+e,i)},o=[],r={passive:!0,capture:!0},a=+new Date,c=function(e,o){n||(n=o,t=e,i=+new Date,f(removeEventListener),p())},p=function(){t>=0&&t<i-a&&(o.forEach(function(e){e(t,n)}),o=[])},u=function(e){if(e.cancelable&&e.isTrusted){var n=(e.timeStamp>1e12?+new Date:performance.now())-e.timeStamp;"pointerdown"===e.type?function(e,n){var t=function(){c(e,n),o()},i=function(){o()},o=function(){removeEventListener("pointerup",t,r),removeEventListener("pointercancel",i,r)};addEventListener("pointerup",t,r),addEventListener("pointercancel",i,r)}(n,e):c(n,e)}},(f=function(e){["click","mousedown","keydown","touchstart","pointerdown"].forEach(function(n){e(n,u,r)})})(addEventListener),v=e,o.push(v),p()}();
+    } catch(e) {
+        // Ignore error
+    }
+}();
+
+
+(function() {
+
+    var hasWebPSupport = (function () {
+        var ua = navigator.userAgent.toLowerCase();
+        var isEdge = ua.indexOf('edge') > -1;
+        var isChrome = !isEdge && ua.indexOf('chrome') > -1;
+        var isSafari = !isChrome && ua.indexOf('safari') > -1;
+        if (isSafari) {
+            var versionMatch = ua.match(/version\/([\d+\.]+)\s/i);
+            if (versionMatch) {
+                return versionMatch[1] >= '14';
+            }
+        }
+
+        return true;
+    })();
+
+    var enabledDomains = [
+        'https://www.bmw.co.uk',
+        'https://www.bmw.de',
+        'https://www.bmw.at',
+        'https://www.bmw.ie',
+        'https://www.bmw.com.cy',
+        'https://www.bmw.mu',
+        'https://www.bmw.com.mt',
+        'https://www.bmw-m.com',
+        'https://www.bmw.co.jp',
+        'https://www.bmw.co.kr',
+        'https://www.bmw.ru',
+        'https://www.bmw.com.tr',
+        'https://www.bmw.com.mx',
+        'https://www.bmw.co.th',
+        'https://www.bmw.com.my',
+        'https://www.bmw.com.tw',
+        'https://www.bmw-voli.me',
+        'https://www.bmw.co.za',
+        'https://www.bmw.cl',
+        'https://www.bmw.co.id',
+        'https://www.bmw.ua',
+        'https://www.bmw.com.co',
+        'https://www.bmwhk.com',
+        'https://www.bmw.com.ar',
+        'https://www.bmw.co.il',
+        'https://www.bmw.com.sg',
+        'https://www.bmw.rs',
+        'https://www.bmw.ma',
+        'https://www.bmw.vn',
+        'https://www.bmw.com.ec',
+        'https://www.bmw.com.pe',
+        'https://www.bmw-egypt.com',
+        'https://www.bmw.com.ph',
+        'https://www.bmw.mq',
+        'https://www.bmw.lk',
+        'https://www.bmw.md',
+        'https://www.bmw.tm.dz',
+        'https://www.bmw.com.uy',
+        'https://www.bmw.com.mo',
+        'https://www.bmw.com.do',
+        'https://www.bmw.ba',
+        //'https://www.bmw.com',
+        'https://www.bmw.hr',
+        'https://www.bmw.co.nz',
+        'https://www.bmw-me.com',
+        'https://www.bmw.co.cr',
+        'https://www.bmw.com.mk',
+        'https://www.bmw-tunisia.com',
+        'https://www.bmw.by',
+        'https://www.bmw-kz.com',
+        'https://www.bmw.com.py',
+        'https://www.bmw.com.pa',
+        'https://www.bmw.com.gt',
+        'https://www.bmw.es',
+        'https://www.bmw.gr',
+        'https://www.bmw.lt',
+        'https://www.bmw.ro',
+        'https://www.bmw.si',
+        'https://www.bmw.in',
+        'https://www.bmw.cz',
+        'https://www.bmw.pt',
+        'https://www.bmw.sk',
+        'https://www.bmw.com.bd',
+        'https://www.bmw.az',
+        'https://www.bmw.hn',
+        'https://www.bmw.com.bo',
+        'https://www.bmwjamaica.com',
+        'https://www.bmw.am',
+        'https://www.bmw.com.ge',
+        'https://www.bmw.cc',
+        'https://www.bmw.bm',
+        'https://www.bmw.pl',
+        'https://www.bmw.dk',
+        'https://www.bmw.fi',
+        'https://www.bmw.ca',
+        'https://www.bmw.it',
+        'https://www.bmw.ee',
+        'https://www.bmw.no',
+        'https://www.bmw.lv',
+        'https://www.bmw.se',
+        'https://www.bmw-tahiti.com',
+        'https://www.bmw.co.ao',
+        'https://www.bmw.tm',
+        'https://www.bmw.ci',
+        'https://www.bmw.fr',
+        'https://www.bmw.ch',
+        'https://www.bmw.lu',
+        'https://www.bmw.com.br',
+        'https://www.bmw.re',
+        'https://www.bmw.gp',
+        'https://www.bmw.bg',
+        'https://www.bmw.com.bn',
+        'https://www.bmw.tt',
+        'https://www.bmw.com.sv',
+        'https://www.bmw.nc',
+        'https://www.bmw.com.ky',
+        'https://www.bmw.co.ke',
+        'https://www.bmw.kg',
+        'https://www.bmw-nigeria.com',
+        'https://www.bmw-ghana.com',
+        'https://www.bmw.sn',
+        'https://www.bmwmyanmar.com',
+        'https://www.bmw.bb',
+        'https://www.bmw.uz',
+        'https://www.bmw.bs',
+        'https://www.bmw.lc',
+        'https://www.bmw-lao.la',
+        'https://www.bmw.cw',
+        'https://www.bmw.mn',
+        'https://www.bmw.sr',
+        'https://www.bmw-albania.com',
+        'https://www.bmw.com.kh',
+        'https://www.bmw.nl',
+        'https://www.bmw.be',
+        'https://www.bmw.hu',
+        'https://www.bmw-yemen.com',
+        'https://www.bmw.is',
+        'https://www.bmw.ly'
+    ]
+
+    function isEnabledSite() {
+        return enabledDomains.some(function(domain) {
+            return location.href.indexOf(domain) > -1;
+        })
+    }
+
+    function getSplit() {
+        // default
+        return 1;
+    }
+
+    function getSplitTestId() {
+        // default
+        return "100";
+    }
+
+    window.speedKit = {
+        appName: "bmw",
+        sw: "/wrapper-sw.js?r=696babe5-b450-4c22-a242-26debc1feed3&v=2.8.1",
+        userAgentDetection: false,
+        rumTracking: isEnabledSite() && window.activateSpeedKitRUM !== false,
+        split: getSplit(),
+        disabled: !isEnabledSite() || window.activateSpeedKit === false,
+        splitTestId: getSplitTestId(),
+        enabledSites: [
+            {
+                pathname: [
+                    // global
+                    /\/index[\/.]/i,
+                    /\/home[\/.]/i,
+                    /\/topics[\/.]/i,
+                    /\/all-models[\/.]/i,
+                    /\/footer[\/.]/i,
+                    /\/models[\/.]/i,
+                    /\/fastlane[\/.]/i,
+                    /\/local-content[\/.]/i,
+                    // germany
+                    '/de/neufahrzeuge',
+                    '/de/neuwagensuche',
+                    '/de/konfigurator',
+                    '/de/landingpage/',
+                    // uk
+                    '/en/configurator',
+                    // france
+                    '/fr/accueil',
+                    '/fr/voiture-neuve',
+                    '/fr/tous-les-modeles',
+                    '/fr/gamme-bmw',
+                    '/fr/configurateur.html',
+                    // russia
+                    '/ru/Online',
+                    '/ru/general',
+                    // taiwan
+                    '/zh/news/',
+                    '/zh/configurator',
+                    // korea
+                    '/ko/bmw-korea',
+                    '/ko/discover',
+                    '/ko/models',
+                    '/ko/services',
+                    // '/ko/usedcar' sollte man sich nochmal genauer anschauen
+                    // turkey
+                    '/tr/ssl/kampanya', // enthält sowohl /kampanyalar.html als auch weitere subseiten /kampanya/...
+                    // Mexico + Chile
+                    '/es/landing',
+                    // Mexico + Colombia
+                    '/es/local',
+                    // Mexico
+                    '/es/modelos',
+                    '/es/configurador',
+                    '/es/integration/campana',
+                    // '/es/ssl' // sollten wir uns nochmal anschauen
+                    // Thailand + Indonesia + Singapore
+                    '/en/ssl/configurator',
+                    // Thailand
+                    '/th/ssl/configurator',
+                    '/en/bmw-explore',
+                    '/th/bmw-explore',
+                    // south africa
+                    '/select-offers',
+                    '/en_Za/integration/contact',
+                    // indonesia + thailand
+                    '/en/integration',
+                    // serbia
+                    '/sr/ssl/Zakazivanje-serivsa.html',
+                    //peru
+                    '/es/landing-pages',
+                    //spain
+                    '/es/coches-bmw/',
+                    '/es/informacion/',
+                    '/es/configurator/',
+                    '/es_ES/stocklocator.html',
+                    '/es_ES/all-models/',
+                    //greece
+                    '/el_GR/configurator.html',
+                    //lithuana
+                    '/lt/konfiguratorius.html',
+                    //romania
+                    '/ro_RO/configurator.html',
+                    //slovenia
+                    '/sl/news-center',
+                    //portugal
+                    '/pt_PT/configurator.html',
+                    //slovakia
+                    '/sk_SK/konfigurator.html',
+                    //poland
+                    '/pl/konfigurator.html',
+                    '/APPS.html',
+                    //denmark
+                    '/da/alle_modeller',
+                    '/da/generelt',//topics
+                    '/da/byg-din-bmw.html',
+                    //finland
+                    '/fi/aiheet',//topics
+                    '/fi/rakenna-oma-bmw.html',
+                    '/fi_FI/rakenna-oma-bmw.html',
+                    '/fi/mallisto/',//all models
+                    //italy
+                    '/it/gamma',
+                    '/it_IT/configuratore.html',
+                    //estonia
+                    '/et/configurator.html',
+                    //norway
+                    '/no_NO/bygg-din-bmw.html',
+                    //latvia
+                    '/lv_LV/topics',
+                    //sweden
+                    '/sv/bygg-din-bmw.html',
+                    '/sv/alla-modeller',
+                    '/sv/avdelning',
+                    '/sv/sidfot',
+                    //switzerland
+                    '/de/bmw-neuwagen/',
+                    '/de/bmw-neuwagen.html',
+                    //brazil
+                    '/fidelidade',
+                    //Netherlands
+                    '/nl/modellen.html',
+                    '/nl/configurator.html',
+                    '/nl/voorraad.html',
+                    '/nl/specials',
+                    '/nl_NL/specials',
+                    '/nl/content/',
+                    //Belgium
+                    '/fr/configurateur.html',
+                    //hungary
+                    '/hu/konfigurator.html',
+                    '/hu_HU/konfigurator.html'
+                ]
+            },
+        ],
+        disabledSites: [
+            {
+                pathname: [
+                    /\?speedkit=off/i,  // flag to disable SK
+                    /dealer-locator.html/i,
+                    // canada
+                    /MyAccount.html/i,
+                    // germany
+                    /mybmw/i,
+                    /mein-bmw/i,
+                    /mybmw-dashboard/i,
+                    // france, uk, poland
+                    /my-bmw/i,
+                    // martinique
+                    /topics\/offers-and-services\/used-automobiles\/our-offers\.html/,
+                    //lithuana
+                    /\/lt\/topics\/offers-and-services\/bmw-online-store.html/,
+                    //poland
+                    /\/content\/forms/i,
+                    /forms\/zamow-jazde-probna\/tda\.html/,//test drive
+                    //denmark
+                    '/da/generelt/kontakt/',
+                    '/da_DK/topics/kontakt/',//bmw-newsletter.html
+                    //finland
+                    /locator\.html/,
+                    '/fi_FI/topics/contact/',// newsletter.html
+                    '/fi/aiheet/yhteydenotto/',// contact (examples: bmw-uutiset.html, varaa-koeajo.html)
+                    '/fi_FI/footer/contact/', // service-booking-online.html
+                    '/fi/footer/yhteydenotto/' // contact varaa-huolto.html
+                ]
+            }
+        ],
+        whitelist: [
+            {
+                host: [
+                    'www.bmw.',
+                    'www.bmw-m.',
+                    'www.bmw-voli.me',
+                    'www.bmwhk.com',
+                    'www.bmw-egypt.com',
+                    'www.bmw-me.com',
+                    'www.bmw-tunisia.com',
+                    'www.bmw-kz.com',
+                    'www.bmwjamaica.com',
+                    'www.bmw-tahiti.com',
+                    'www.bmwmyanmar.com',
+                    'www.bmw-ghana.com',
+                    'www.bmw-nigeria.com',
+                    'www.bmw-lao.la',
+                    'www.bmw-albania.com',
+                    'www.bmw-yemen.com',
+                    'assets.adobedtm.com',
+                    'amplify.outbrain.com',
+                    'static.criteo.net',
+                    's.pinimg.com',
+                    'snap.licdn.com',
+                    'bmw.admo.tv',
+                    'static.iadvize.com',
+                    'static.bmw.1dmp.io',
+                    'static.ads-twitter.com',
+                    'apps.mypurecloud.de',
+                    'd.line-scdn.net',
+                    'cdn.smartnews-ads.com'
+                    // 'cosystatic.bmwgroup.com',
+                    // 'cosy.bmwgroup.com'
+                ],
+                contentType: ['script', 'font', 'style', 'image', 'navigate']
+            },
+            {
+                url: [
+                    'www.googleadservices.com/pagead/conversion_async.js',
+                    'www.googletagmanager.com/gtag/js',
+                    'cdn.rutarget.ru/static/tag/tag.js',
+                    'mc.yandex.ru/metrika/tag.js'
+                ]
+            }
+        ],
+        blacklist: [
+            {
+                host: hasWebPSupport ? [] : [
+                    'cosystatic.bmwgroup.com',
+                    'cosy.bmwgroup.com',
+                    'api.bmw.com',
+                    'api-int.bmw.com',
+                    'stocklocator-dealers.bmw.com',
+                    'stocklocator-dealers.bmw-int.com',
+                    'c2b-services.bmw.com',
+                    'c2b-services-i.bmw.com'
+                ],
+            },
+            {
+                pathname: [
+                    //myBMW login
+                    /login/i,
+                    /\/newsletteranmeldung/i,
+                    /checkout/i,
+                    /forms/i,
+                    // 404
+                    /video.js\/video-js.min.css/,
+                    // Blacklist not refreshing JS
+                    '/etc/clientlibs/digitals2/clientlib/js/app/partials/0-sub-elements/ds2-video-layer-link.min.20210317121531.min.js'
+                ]
+            },
+            {
+                url: [
+                    /registration/i,
+                    /gcdm/i,
+                    /\.pdf/i,
+                    /[?&](formtype|token)=/i,
+                    /[?&](_=1\d{12})/,
+                    /\/override\.css/i,
+                    'stream.bmw',
+                    'bmw.scene7.com',
+                    'api.bmw.com',
+                    // Analytics requests
+                    /facebook/,
+                    /assets.adobedtm.com/,
+                    /omtrdc/,
+                    /linkedin/,
+                    /pinterest/,
+                    /sslwidget.criteo/,
+                    /demdex/,
+                    /doubleclick/,
+                    /googleads/,
+                    /googleadservices/,
+                    /\/pagead\//,
+                    /nocache/,
+                    /messagebusdefinition/,
+                    // 503
+                    'www.bmw.co.nz/h5vco/finance/apps/html5-bmw-app.css',
+                    'www.bmw.in/h5vco/finance/apps/html5-bmw-app.css',
+                    // 404
+                    /minidigital/,
+                ]
+            },
+            {
+                cookie: ['speedkit=off'],
+                contentType: ['document']
+            }
+        ],
+        stripQueryParams: [{
+            params: [
+                "gclid",
+                "msclkid",
+                "utm_source",
+                "utm_campaign",
+                "utm_medium",
+                "utm_content",
+                "utm_term",
+                "utm-source",
+                "utm-campaign",
+                "utm-medium",
+                "utm-content",
+                "utm-term",
+                "gclsrc",
+                "fbclid",
+                "ds_rl",
+                "dclid",
+                "cjid",
+                "campaign",
+
+                // mini params
+                "yclid",
+                "mkwid",
+                "ctid",
+                "ccid",
+                "tblci",
+                "DMKW",
+                "DMSKW",
+                "DMCOL",
+                "n_campaign_type",
+                "sc_src",
+                "sc_lid",
+                "sc_uid",
+                "sc_llid",
+                "sc_customer",
+                "nspid",
+                "ac_delivery_internal_name",
+                "ac_delivery_label",
+                "ac_campaign_internal_name",
+                "ac_campaign_label",
+                /^nx$/,
+                /^ny$/,
+                /^tl$/,
+                "clkt",
+                "guid",
+                "_adp_p_ad",
+                "_adp_p_agr",
+                "_adp_e",
+                "_adp_c",
+                "_adp_p_cp",
+                "_adp_p_dm",
+                "_adp_p_md",
+                "_adp_u",
+                "s_kwcid",
+                "ef_id",
+                /_kis_cup_/
+            ]
+        }]
+    };
+
+})();
+
+
+!function(e,n,t,r,i,a,o){"use strict";var s="baqend-speedkit",d=s+"-user-id",c=s+"-session-id",u=s+"-session-index",p=s+"-session-timestamp";function l(e,n,t,r){return Promise.resolve(e).then((function(e){return new Promise((function(i,a){var o=e.transaction(n,t),s=Promise.resolve(r(o.objectStore(n)));o.oncomplete=function(){return s.then(i)},o.onabort=o.onerror=function(){return a(o.error)}}))}))}function f(e,n,t){return l(e,n,"readwrite",t)}function g(e,n){return n&&"/"!==n?""+(""+(n.lastIndexOf("/")===n.length-1?n.substr(0,n.length-1):n))+((0===e.indexOf("/")?"":"/")+e):e}var v,h,m=function(){function e(e){this.dbp=null,this.cacheName=g(s,e),this.dbp=this.openDb()}return e.prototype.get=function(e){return(n=this.db(),t="baqend-speedkit-store",r=function(n){return n.get(e)},l(n,t,"readonly",r)).then((function(e){return e.result||null}));var n,t,r},e.prototype.set=function(e,n){return f(this.db(),"baqend-speedkit-store",(function(t){return t.put(n,e)&&void 0}))},e.prototype.clear=function(){return Promise.all([(e=this.db(),n="baqend-speedkit-store",f(e,n,(function(e){return e.clear()})).then((function(){})))]).then((function(){}));var e,n},e.prototype.disconnect=function(){var e=this;return this.dbp?this.dbp.then((function(n){e.dbp=null,n.close()})):Promise.resolve()},e.prototype.db=function(){return this.dbp||(this.dbp=this.openDb()),this.dbp},e.prototype.openDb=function(){var e=this,n=indexedDB.open(this.cacheName,1);return n.onupgradeneeded=function(e){var t=e.oldVersion,r=n.result;t<1&&r.createObjectStore("baqend-speedkit-store")},this.openRequest(n).then((function(n){return n.onclose=function(){e.dbp=null},n.onerror=function(){e.dbp=null},n.onversionchange=function(t){t.newVersion||(e.dbp=null,n.close())},n}))},e.prototype.openRequest=function(e){return new Promise((function(n,t){e.onsuccess=function(){return n(e.result)},e.onerror=function(){return t(e.error)},e.onblocked=function(){return t(e.error)}}))},e}();!function(){function e(){this.map=new Map}e.prototype.get=function(e){return Promise.resolve(this.map.get(e)||null)},e.prototype.set=function(e,n){return this.map.set(e,n),Promise.resolve()},e.prototype.clear=function(){return this.map.clear(),Promise.resolve()}}();function w(n){"complete"!==e.readyState?window.addEventListener("load",n):n()}function S(e,t){if(n.sendBeacon)n.sendBeacon(e,t);else{var r=new XMLHttpRequest;r.open("POST",e,!0),r.send(t)}}function b(e){return parseFloat((1-e).toFixed(2))}function y(){for(var e=[],n=0;n<arguments.length;n++)e[n]=arguments[n];var t={};return e.forEach((function(e){Object.keys(e).forEach((function(n){return t[n]=e[n]}))})),t}!function(e){e.SWException="SWException",e.BloomfilterException="BloomfilterException",e.DashboardDisabled="DashboardDisabled",e.ServerError="ServerError",e.None="None"}(v||(v={})),function(e){e[e.navigate=0]="navigate",e[e.reload=1]="reload",e[e.back_forward=2]="back_forward",e[e.prerender=3]="prerender",e[e.reserved=255]="reserved"}(h||(h={}));var k,I,C,E,N,T={performanceOnly:!1,stripAllParameter:!1,noCookies:!1,noTracking:!1};function P(){var e=y({},T);return r.rumTracking?"boolean"==typeof r.rumTracking?e:y(e,r.rumTracking):y(e,{noTracking:!0})}function O(e){return e===k.SwUnsupported}function R(){return r.disabled||!1===r.enabled}function D(t){var i=!!r.secondaryGroup,a=i?t.group+"-"+r.secondaryGroup:t.group,o=i?t.splitTestId+"-"+r.secondaryTestId:t.splitTestId,s=function(){if(P().stripAllParameter)return location.href.replace(/\?.*/,"?redacted");if(P().stripParameters){var e=new URL(location.href);return P().stripParameters.forEach((function(n,t){var r=new URL(location.href).searchParams.get(n)||"",i=r.length?n+"="+r:n;e.search=e.search.replace(new RegExp("(\\?|&)"+i),"$1redacted-"+t)})),e.href}return location.href}(),d=new FormData;if(d.append("id",t.navigateId),d.append("executionTime",""+t.executionTime),d.append("url",s),d.append("swSupported",""+t.swSupported),d.append("disabled",""+t.disabled),d.append("swResponse",""+t.lastNavigate.swResponse),d.append("userAgent",""+n.userAgent),d.append("browser",t.lastNavigate.browser+" "+t.lastNavigate.browserVersion),d.append("referrer",""+e.referrer),d.append("testId",""+o),d.append("group",""+a),d.append("cacheHit",""+t.lastNavigate.cacheHit),d.append("firstLoad",""+t.lastNavigate.firstLoad),d.append("responseSource",""+t.lastNavigate.responseSource),d.append("responseCause",""+t.lastNavigate.responseCause),d.append("controllingSW",""+t.controllingServiceWorker),"number"==typeof t.split){var c="A"===t.group&&"number"==typeof r.secondarySplit?"B"===r.secondaryGroup?b(r.secondarySplit):r.secondarySplit:1;d.append("split",""+t.split*c)}t.lastNavigate.splitTestId!==t.splitTestId&&d.append("actualTestId",""+t.lastNavigate.splitTestId),t.lastNavigate.group!==t.group&&d.append("actualGroup",""+t.lastNavigate.group),t.lastNavigate.disconnectCause&&t.lastNavigate.disconnectCause!==v.None&&t.lastNavigate.disconnectCause!==v.DashboardDisabled&&d.append("disconnectCause",""+t.lastNavigate.disconnectCause),function(e){if(void 0!==window.performance){var n=performance.timing;e.append("navigationStart",""+n.navigationStart),e.append("unloadEventStart",""+n.unloadEventStart),e.append("unloadEventEnd",""+n.unloadEventEnd),e.append("domainLookupStart",""+n.domainLookupStart),e.append("domainLookupEnd",""+n.domainLookupEnd),e.append("connectStart",""+n.connectStart),e.append("secureConnectionStart",""+(n.secureConnectionStart||-1)),e.append("connectEnd",""+n.connectEnd),e.append("redirectStart",""+n.redirectStart),e.append("redirectEnd",""+n.redirectEnd),e.append("requestStart",""+n.requestStart),e.append("fetchStart",""+n.fetchStart),e.append("responseStart",""+n.responseStart),e.append("responseEnd",""+n.responseEnd),e.append("domLoading",""+n.domLoading),e.append("domContentLoadedEventStart",""+n.domContentLoadedEventStart),e.append("domContentLoadedEventEnd",""+n.domContentLoadedEventEnd),e.append("domComplete",""+n.domComplete),e.append("domInteractive",""+n.domInteractive),e.append("loadEventStart",""+n.loadEventStart),e.append("loadEventEnd",""+n.loadEventEnd)}if("undefined"!=typeof PerformancePaintTiming){var t=performance.getEntriesByType("paint");if(t&&t.length){var r=t.find((function(e){return"first-paint"===e.name})),i=t.find((function(e){return"first-contentful-paint"===e.name}));e.append("firstPaint",""+(r?Math.round(r.startTime):-1)),e.append("firstContentfulPaint",""+(i?Math.round(i.startTime):-1))}}else if(void 0!==window.performance){var a=performance.timing.navigationStart,o=performance.timing.msFirstPaint;o&&(e.append("firstPaint",""+(o-a)),e.append("firstContentfulPaint",""+(o-a)))}}(d),function(e){"undefined"==typeof PerformanceNavigationTiming&&void 0!==typeof window.performance&&e.append("navigationType",""+performance.navigation.type);var n=performance.getEntriesByType("navigation");n&&n.length>0&&e.append("navigationType",""+h[n[0].type])}(d),function(e,n){if(P().performanceOnly)return;n.append("userId",""+e.userId),n.append("sessionId",""+e.sessionId),n.append("sessionIndex",""+e.sessionIndex)}(t,d),function(e,n){null!==e.lastNavigate.fromOrigin&&n.append("fromOrigin",""+e.lastNavigate.fromOrigin);null!==e.lastNavigate.backendCacheHit&&n.append("backendCacheHit",""+e.lastNavigate.backendCacheHit);e.lastNavigate.cdnCacheHit&&n.append("cdnCacheHit",""+e.lastNavigate.cdnCacheHit);e.lastNavigate.cdnBackendTime&&n.append("cdnBackendTime",""+e.lastNavigate.cdnBackendTime);e.lastNavigate.cdnPoP&&n.append("cdnPoP",""+e.lastNavigate.cdnPoP)}(t,d),function(e,n){var t=e.lastNavigate?e.lastNavigate.timings:null;if(!t)return;t.eventStart&&n.append("speedKitEventStart",""+t.eventStart);t.handleStart&&n.append("speedKitHandleStart",""+t.handleStart);t.handleEnd&&n.append("speedKitHandleEnd",""+t.handleEnd);t.cacheStart&&n.append("speedKitCacheStart",""+t.cacheStart);t.cacheEnd&&n.append("speedKitCacheEnd",""+t.cacheEnd);t.fetchStart&&n.append("speedKitFetchStart",""+t.fetchStart);t.fetchEnd&&n.append("speedKitFetchEnd",""+t.fetchEnd)}(t,d);var u,p=(u=t.lastNavigate.responseCause,(R()||O(u))&&"B"!==r.group);S(r.appURL+"/db/speedKit.Metric"+(p?"?bqpi=1":""),d)}function L(e){var n,t=!1,r=!1,i=!1,a=!0,o=function(){t&&r&&i&&a&&(a=!1,D(e))},s=function(){a&&(a=!1,D(e))};w((function(){setTimeout((function(){t=!0,o()}))})),function(e,n){"complete"!==e.readyState?window.addEventListener("speed-kit-completed",n,{once:!0}):n()}(e,(function(){r=!0,o()})),n=function(){i=!0,o()},"undefined"!=typeof PerformancePaintTiming&&performance.getEntriesByType("paint").length>0||"undefined"==typeof PerformanceObserver||"undefined"==typeof PerformancePaintTiming?n():new PerformanceObserver(n).observe({entryTypes:["paint"]}),window.addEventListener("beforeunload",s),window.addEventListener("unload",s)}function q(n){"complete"!==n.readyState&&setTimeout((function(){var t,r,i,a;n.readyState="complete",t="speed-kit-completed",r=window,void 0===i&&(i={}),"function"==typeof CustomEvent?a=new CustomEvent(t,{detail:i}):(a=e.createEvent("CustomEvent")).initCustomEvent(t,!0,!0,i),r.dispatchEvent(a)}))}function x(e,n,t,r){void 0===r&&(r=1e3);var i=!1;return t&&setTimeout((function(){return i?null:t()}),r),new Promise((function(t,r){var a=new MessageChannel,o=a.port1,s=a.port2;o.onmessage=function(e){i=!0,t(e.data)},o.onmessageerror=function(e){return r(e.data)},e.postMessage(n,[s])}))}function B(){return!!e.querySelector(".speed-kit-dynamic-loading,.speed-kit-dynamic-loaded")}function A(e,n){x(e,{type:"get-navigate-info",clientURL:location.href},(function(){n.lastNavigate.responseSource=B()?N.AssetAPI:N.Origin,n.lastNavigate.responseCause=k.NoSwResponse,q(n)})).then((function(e){!function(e,n){if(!n)return;if("reason"in n)return e.lastNavigate.applicationState=n.applicationState,e.lastNavigate.errorMessage=n.reason,void(n.applicationState===E.FAILED?e.lastNavigate.responseCause=k.SwFailed:e.lastNavigate.swResponse=!0);if("wasCacheHit"in n)return e.wasServed=!0,void(e.wasCacheHit=n.wasCacheHit);n.firstLoad=e.lastNavigate.firstLoad;var t=n.responseSource===N.Origin;e.wasServed=!t,e.wasCacheHit=n.cacheHit,e.lastNavigate=n,e.lastNavigate.applicationState=E.RUNNING,e.lastNavigate.swResponse=!0,e.lastNavigate.responseCause=n.responseCause,e.lastNavigate.responseSource=t&&B()?N.SDN:n.responseSource,e.lastNavigate.originStatus=n.originStatus,e.lastNavigate.fromOrigin=void 0===n.fromOrigin?null:n.fromOrigin,e.lastNavigate.backendCacheHit=void 0===n.backendCacheHit?null:n.backendCacheHit}(n,e),q(n)}))}function M(e){return fetch(r.appURL+"/config/VAPIDPublicKey").then((function(e){return e.arrayBuffer()})).then((function(e){return{applicationServerKey:e,userVisibleOnly:!0}})).then((function(n){return e.subscribe(n)})).then((function(e){var n={subscription:e,devicetype:"WebPush"};return fetch(r.appURL+"/db/Device/register",{method:"POST",credentials:"include",body:JSON.stringify(n),headers:{"Content-Type":"application/json"}})})).then((function(e){return 200===e.status}),(function(){return!1}))}function U(){return"Notification"in window?Notification.requestPermission().then((function(e){return"denied"===e?"denied":"granted"!==e?"undecided":n[t].ready.then((function(e){var n=e.pushManager;return function(e){return e.getSubscription().then((function(e){return!!e}))}(n).then((function(e){return!!e||M(n)}))})).then((function(e){return e?"registered":"unregistered"}))})):Promise.resolve("unsupported")}function K(e){return void 0===e&&(e=25),function(e){var n=[];n.length=e;var t=0;for(;t<e;)n[t]=0,t+=1;return n}(e).map((function(){return Math.floor(62*Math.random())})).map((function(e){return"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[e]})).join("")}function F(e,n){if("undefined"!=typeof Storage)try{localStorage.setItem(e,n)}catch(t){}}!function(e){e.Blacklist="Blacklist",e.ClientError="ClientError",e.CORSRedirect="CORSRedirect",e.CriticalResource="CriticalResource",e.Delayed="Delayed",e.Disabled="Disabled",e.Disconnected="Disconnected",e.DynamicBlock="DynamicBlock",e.DynamicBlockPreload="DynamicBlockPreload",e.Error="Error",e.Fallback="Fallback",e.Fetchlist="Fetchlist",e.FirstLoad="FirstLoad",e.GroupChange="GroupChange",e.IgnoredAfterPOSTNavigate="IgnoredAfterPOSTNavigate",e.InternalServerError="InternalServerError",e.LoopDetected="LoopDetected",e.NavigationPreload="NavigationPreload",e.NonSKGroup="NonSKGroup",e.NoSwInstalled="NoSwInstalled",e.NoSwResponse="NoSwResponse",e.Offline="Offline",e.Onboarding="Onboarding",e.SafeScript="SafeScript",e.SwFailed="SwFailed",e.SwUnsupported="SwUnsupported",e.TrackingRequest="TrackingRequest",e.Unknown="Unknown",e.Immutable="Immutable"}(k||(k={})),function(e){e.CacheMiss="CacheMiss",e.ExpiredResponse="ExpiredResponse",e.InstantRefresh="InstantRefresh",e.InvalidCacheSketch="InvalidCacheSketch",e.ReloadCacheMode="ReloadCacheMode",e.UrlInCacheSketch="UrlInCacheSketch"}(I||(I={})),function(e){e.CacheHit="CacheHit",e.RevalidationWhitelist="RevalidationWhitelist"}(C||(C={})),function(e){e.INSTALLING="installing",e.RUNNING="running",e.FAILED="failed"}(E||(E={})),function(e){e.AssetAPI="AssetAPI",e.Shield="Shield",e.Storage="Storage",e.Edge="Edge",e.Collapsed="Collapsed",e.PendingAsset="PendingAsset",e.Stream="Stream",e.MissingCachingHeader="MissingCachingHeader",e.Generated="Generated",e.Origin="Origin",e.SwCache="SwCache",e.SDN="SDN"}(N||(N={}));var H=["baqend-speedkit-user-id","baqend-speedkit-ab-test-info"];function G(n,t){if(F(n,t),!(P().noCookies||H.indexOf(n)<0)){var i=r.cookieLifetime||180,a=new Date(Date.now()+24*i*60*60*1e3).toUTCString();e.cookie=n+"="+t+"; expires="+a+"; path=/"}}function W(e){var n=null;if("undefined"!=typeof Storage)try{n=localStorage.getItem(e)}catch(t){}return n}function V(n){var t=W(n),r=function(n){var t=new RegExp(n+"=([^,;]*)"),r=e.cookie.match(t);if(!r||!r[1])return null;return r[1]}(n),i=t||r;return i&&t!==r&&G(n,i),i}function J(){var e=P();if(!e.noTracking&&!e.performanceOnly){var n=V(d);if(n)return n;var t=K();return G(d,t),t}return""}function j(e,n,t){if(!P().noTracking){var i=new FormData,a=r.secondaryGroup?r.group+"-"+r.secondaryGroup:r.group;i.append("navigate",window.SpeedKit.navigateId),i.append("action",""+e),i.append("label",""+n),i.append("value",""+t),i.append("group",""+a),P().performanceOnly||(i.append("userId",""+J()),i.append("sessionId",""+window.SpeedKit.sessionId)),S(r.appURL+"/db/speedKit.CustomEvent",i)}}function z(){var e,n=P();if(!n.noTracking&&!n.performanceOnly){var t=K(),i=0;if((e=V(p))&&(Date.now()-parseInt(e,10))/1e3<=r.sessionLifetime){t=V(c);var a=""+(V(u)||-1);i=parseInt(a,10)+1}return G(c,t),G(u,""+i),G(p,Date.now().toString()),[t,i]}return["",0]}var X=function(){function e(){var e=this;this.plugins=new Map,this.isBeaconSent=!1,window.addEventListener("beforeunload",(function(){e.send(!0)})),window.addEventListener("unload",(function(){e.send(!0)}))}return e.prototype.notify=function(e){var n=this;setTimeout((function(){n.plugins.get(e).complete=!0,n.send(!1)}),0)},e.prototype.register=function(e){for(var n=0,t=e;n<t.length;n++){var r=t[n],i=r.plugin,a={complete:!1,name:r.name};if(this.plugins.get(i))return;this.plugins.set(i,a),i.init(this)}},e.prototype.gatherData=function(){var e={};return this.plugins.forEach((function(n,t){e[n.name]=t.getData()})),e},e.prototype.allComplete=function(){var e=!0;return this.plugins.forEach((function(n){n.complete||(e=!1)})),e},e.prototype.send=function(e){if(!this.isBeaconSent&&0!==this.plugins.size){var n=this.allComplete();if(e||n){var t=this.gatherData(),i=new Blob([JSON.stringify(t)],{type:"application/json; charset=UTF-8"}),a=new FormData;a.append("metaData",i),a.append("url",location.href),a.append("navigate",SpeedKit.navigateId),a.append("userId",SpeedKit.userId),a.append("sessionId",SpeedKit.sessionId),a.append("group",SpeedKit.group),S(r.appURL+"/db/speedKit.MetricMetadata",a),this.isBeaconSent=!0}}},e}();function _(e){var r=n[t];r&&r.ready.then((function(n){r.controller&&r.controller.postMessage({type:"update-device",data:e})}))}function Q(e){var r=n[t].controller;r&&r.postMessage({type:"bypass-deactivation",data:e})}function Y(){var e=n[t];e&&e.controller&&e.controller.postMessage({type:"connect"})}function Z(){var e=n[t];e&&e.controller&&e.controller.postMessage({type:"disconnect"})}function $(){var e=W("baqend-speedkit-hashing-salt");if(e)return e;var n=function(){for(var e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",n="",t=0;t<32;t+=1)n+=e.charAt(Math.floor(Math.random()*e.length));return n}();return F("baqend-speedkit-hashing-salt",n),n}function ee(e){return function(e,n){for(var t="",r=0;r<e.length;r+=1){var i=r%n.length;t+=(e.charCodeAt(r)^n.charCodeAt(i)).toString(32)}return t}(e,$())}function ne(e){var r=n[t].controller;r&&r.postMessage({type:"offline",data:e})}function te(){var e=n[t].controller;e&&e.postMessage({type:"fetch-bloom-filter",data:!0})}function re(){return n.serviceWorker&&n.serviceWorker.controller?n.serviceWorker.controller.scriptURL:null}function ie(r){var i=n[t].controller;i&&i.postMessage({event:r,type:"send-cookies",data:e.cookie})}function ae(e,n){var t="baqend-speedkit-secondary-ab-test-info"===n,i=function(e,n){var t="undefined"!==e.testId,i="undefined"!==e.group,a=n?r.secondaryTestId:r.splitTestId,o=t&&(s=e.testId,d=a,(null==s?void 0:s.replace("-debug",""))!==(null==d?void 0:d.replace("-debug","")));var s,d;if(i&&!o)return e.group;var c=n?r.secondaryGroup:r.group,u=n?r.secondarySplit:r.split;return function(e,n){if(void 0===e)return Math.random()<n?"A":"B";return e}(c,u)}(e,t),a=t?r.secondaryTestId:r.splitTestId;return a&&(a=function(e){if("true"!==localStorage.getItem("baqend-speedkit-debug"))return e.replace("-debug","");if(e.indexOf("-debug")>-1)return e;return e+"-debug"}(a)),function(e,n,t){r=t,i=encodeURIComponent(JSON.stringify(e)),a=encodeURIComponent(JSON.stringify(n)),a!==i&&a&&G(r,a);var r,i,a}(e,{group:i,testId:a},n),{group:i,splitTestId:a}}function oe(e){var t=e.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i)||[],r=null;if(/trident/i.test(t[1]))return r=/\brv[ :]+(\d+)/g.exec(e)||[],["IE",parseInt(r[1],10)||0];var i=function(e){if(/(iPhone|iPod|iPad).*AppleWebKit(?!.*Version)/.test(e)){var n=e.match(/(OS |os |OS)(\d+)/i)||[];return["SafariWebView",parseInt(n[2],10)||0]}return null}(e)||function(e,n){if("Chrome"===n[1]){var t=null;if(null!=(t=e.match(/\bEdg\/(\d+)/)||e.match(/\bEdge\/(\d+)/)))return["Edge",parseInt(t[1],10)];if(null!=(t=e.match(/\bOPR\/(\d+)/)))return["Opera",parseInt(t[1],10)]}return null}(e,t);if(null!==i)return i;var a=t[2]?[t[1],parseInt(t[2],10)]:[n.appName,parseInt(n.appVersion,10)];return-1===e.indexOf("Android")&&null!=(r=e.match(/version\/(\d+)/i))&&a.splice(1,1,parseInt(r[1],10)),a}function se(){return null===V(d)}function de(e,i,a,o){var s=function(e,r){return!!n[t]&&!!n[t].getRegistrations&&function(e,n){return"Chrome"===e?n>=61:"Firefox"!==e||59!==n}(e,r)}(e,i)&&!a,d=se(),c="B"===r.group||"B"===r.secondaryGroup;return s?!c&&R()?[N.Origin,k.Disabled]:d?[N.Origin,k.FirstLoad]:!c&&o?[N.Origin,k.GroupChange]:n[t].controller?[B()?N.AssetAPI:N.Origin,k.Unknown]:[N.Origin,c?k.NonSKGroup:k.NoSwInstalled]:[N.Origin,k.SwUnsupported]}function ce(e,n,t){return e.put(""+n,new Response(null,{status:200,statusText:(r=t,JSON.stringify(r,(function(e,n){return n instanceof RegExp?"regexp:/"+(t=n).source+"/"+(t.flags||""):n;var t})))}));var r}function ue(){var i=function(e){var n=e;if(r.includeServiceWorker){var t=e.indexOf("?")>=0?"&":"?";n+=t+"othersw="+r.includeServiceWorker}return n}(r.sw);return n[t].register(i,{scope:r.scope||"/"}).then((function(n){window.addEventListener("unload",(function(){return ie("unload")})),function(n){w((function(){window.setTimeout((function(){if(n.active){var t=(window.performance.getEntriesByType?window.performance.getEntriesByType("resource"):[]).map((function(e){return{name:e.name,url:e.initiatorType}}));x(n.active,{type:"prewarm-fetch",data:t}).then((function(t){if(t.applicationState===E.FAILED)return function(n){return caches.open(g(s,r.scope)).then((function(n){var t=window.devicePixelRatio,i=window.screen.width,a=[[location.origin,e.cookie]];return Promise.all([ce(n,"/com.baqend.speedkit.screen",{dpr:t,width:i}),ce(n,"/com.baqend.speedkit.config",r),ce(n,"/com.baqend.speedkit.cookie",{origins:a})])})).then((function(){return n.postMessage({type:"init-cache"})}))}(n.active)}))}}),1e3)}))}(n),function(e){e.navigationPreload&&function(e){if(e.active)return Promise.resolve(e.active);var n=e.waiting||e.installing;return new Promise((function(e){return n.onstatechange=function(){"activated"===n.state&&e(n)}}))}(e).then((function(){r.navigationPreload?e.navigationPreload.enable():e.navigationPreload.disable()}))}(n)}))}function pe(n){if("undefined"!=typeof Storage)try{localStorage.removeItem(n)}catch(t){}e.cookie=n+"=; expires="+(new Date).toUTCString()+"; path=/;"}function le(e){var n=V(e);if(n)return function(e){try{return JSON.parse(decodeURIComponent(e))}catch(n){return{group:"undefined",testId:"undefined"}}}(n);if("baqend-speedkit-secondary-ab-test-info"===e)return{group:"undefined",testId:"undefined"};var t=V("baqend-speedkit-ab-test-id"),r=V("baqend-speedkit-group"),i={group:r||"undefined",testId:t||"undefined"};return(t||r)&&G("baqend-speedkit-ab-test-info",encodeURIComponent(JSON.stringify(i))),i}function fe(){var e,n,t="1"===W("baqend-speedkit-rum-opt-out")||window.deactivateSpeedKitRUM,i=JSON.parse(W("baqend-speedkit-rum-split-enabled")||"{}"),a=!i.sessionId,o=i.sessionId===V("baqend-speedkit-session-id"),s=i&&i.sessionId?!1!==i.split:(n=Math.random()<(null!==(e=r.sampleRate)&&void 0!==e?e:1),F("baqend-speedkit-rum-split-enabled",JSON.stringify({split:n,sessionId:V("baqend-speedkit-session-id")})),n);return void 0!==r.rumTracking&&!t&&s&&(o||a)?r.rumTracking:!(t||!s)&&!!r.rumTracking}function ge(){ve().catch((function(e){return j("fillDatabaseError",e,Date.now()),we().then((function(){return ve()}))})).then((function(){return ue()})).catch((function(){return me()}))}function ve(){var t=function(e){if(!e)return e;return new URL(e,location.origin).pathname}(r.scope),i=new m(t),a=window.devicePixelRatio,o=window.screen.width,s=n.userAgent,d=r.customDevice,c=d?i.set("/com.baqend.speedkit.device",{device:d,userAgent:s}):Promise.resolve();return Promise.all([i.set("/com.baqend.speedkit.config",r),i.set("/com.baqend.speedkit.screen",{dpr:a,width:o}),i.set("/com.baqend.speedkit.cookie",{origins:[[location.origin,e.cookie]]}),he(i),c]).then((function(){return i.disconnect()}))}function he(e){}function me(){var e=new URL(r.scope||"/",location.origin).toString(),i=new URL(r.sw||"/sw.js",location.origin),a=i.origin+i.pathname;return n[t].getRegistrations().then((function(n){return n.forEach((function(n){var t=function(e){var n=e.active||e.installing||e.waiting;if(!n)return"";var t=new URL(n.scriptURL);return t.origin+t.pathname}(n);n.scope===e&&t===a&&n.unregister()}))})).catch((function(){return null})).then((function(){return we()}))}function we(){return Promise.all([caches.keys().then((function(e){var n=e.filter((function(e){return new RegExp("^"+g(s,r.scope)+".*").test(e)}));return Promise.all(n.map((function(e){return caches.delete(e)})))})),(e=new m(r.scope),e.clear().then((function(){return e.disconnect()})))]);var e}!function(){if(window[i])return;window[i]=!0;var a=window.top!==window;if(!r.executeInIframe&&a)return;var o=window.location.href.match(/speed-kit-rum-opt-out=([01])/);o&&F("baqend-speedkit-rum-opt-out",o[1]);var l=function(){G("/com.baqend.speedkit.denied","false");var e=null===V("/com.baqend.speedkit.denied");return pe("/com.baqend.speedkit.denied"),e}(),f=function(){var e={group:"",testId:r.splitTestId};if(window.location.href.indexOf("disableSpeedKit=1")>=0?e.group="B":window.location.href.indexOf("enableSpeedKit=1")>=0&&(e.group="A"),e.group)return G("baqend-speedkit-ab-test-info",encodeURIComponent(JSON.stringify(e))),e}()||le("baqend-speedkit-ab-test-info"),g=le("baqend-speedkit-secondary-ab-test-info");!function(e,t){if(r.sw=r.sw||"/sw.js",r.sessionLifetime=r.sessionLifetime||1800,null==r.split)r.group="A";else{var i=ae(e,"baqend-speedkit-ab-test-info");r.group=i.group,r.splitTestId=i.splitTestId}if(null!=r.secondarySplit&&"A"===r.group){var a=ae(t,"baqend-speedkit-secondary-ab-test-info");r.secondaryGroup=a.group,r.secondaryTestId=a.splitTestId}null!=r.split&&r.group&&(r.sw=(o=r.sw,s="gr",d=r.group,c=o.indexOf("?")>-1?"&":"?",""+o+c+s+"="+d));var o,s,d,c;if(r.rumTracking){var u="1"===W("baqend-speedkit-rum-opt-out")||window.deactivateSpeedKitRUM;r.rumTracking=!u&&r.rumTracking}var p=!r.enableForWebViews&&(n.userAgent.toLowerCase().indexOf("wv)")>-1||(l=oe(n.userAgent),"SafariWebView"===l[0]&&l[1]>=14));var l;r.disabled=!1===r.enabled||r.disabled||"B"===r.group||"B"===r.secondaryGroup||p||!!window.deactivateSpeedKit,r.appURL="https://"+(r.appDomain||"{}.app.baqend.com".replace("{}",r.appName))+"/v1",r.customVariation&&r.customVariation.forEach((function(e){e.variationFunction="function"==typeof e.variationFunction?e.variationFunction.toString():e.variationFunction}))}(f,g);var m=function(e){var i=function(e){var n=z(),t={track:j,subscribe:U,bypassDeactivation:Q,activate:Y,deactivate:Z,sessionId:n[0],sessionIndex:n[1],split:"number"==typeof r.split?"B"===r.group?b(r.split):r.split:1,updateDevice:_,getHash:ee,simulateOfflineMode:ne,fetchBloomFilter:te,swSupported:!1,disabled:!1,wasServed:!1,wasCacheHit:!1,lastNavigate:e,readyState:"loading",userId:J(),splitTestId:r.splitTestId,group:r.group,navigateId:"/db/speedKit.Metric/"+K(32),controllingServiceWorker:re(),executionTime:Date.now(),pluginController:new X},i=window.SpeedKit||{};return Object.keys(i).forEach((function(e){t[e]=i[e]})),window.SpeedKit=t,window.SpeedKit}(e);i.swSupported=!O(i.lastNavigate.responseCause),i.disabled="B"!==r.group&&"B"!==r.secondaryGroup&&!!R(),n[t]&&n[t].controller||!B()||(i.lastNavigate.responseSource=N.SDN);return i}(function(e,t,r){var i=window.location.href,a=oe(n.userAgent),o=a[0],s=a[1],d=de(o,s,e,"B"===t.group||"B"===r.group),c=d[0];return{url:i,browser:o,browserVersion:s,responseCause:d[1],responseSource:c,fromOrigin:!0,cacheHit:!1,cdnCacheHit:null,cdnBackendTime:null,cdnPoP:null,firstLoad:se(),splitTestId:t.testId,group:t.group,swResponse:!1,backendCacheHit:!1,disconnectCause:v.None}}(l,f,g));r.rumTracking=fe();var S=P();S.noCookies&&function(n){for(var t=0,r=e.cookie.replace(/\s/g,"").split(";").filter((function(e){return 0===e.lastIndexOf(n,0)}));t<r.length;t++){var i=r[t],a=i.indexOf("="),o=a>-1?i.substr(0,a):i;e.cookie=o+"=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/"}}(s);!S.noTracking&&!S.performanceOnly||r.sampleRate||[d,c,u,p].forEach((function(e){return pe(e)}));S.noTracking||l||L(m);if(O(m.lastNavigate.responseCause))return void q(m);var y=n[t].controller;y?(A(y,m),r.customDevice&&_(r.customDevice),ie("load"),(I=n.userAgent).indexOf("Safari")>-1&&-1===I.indexOf("Edge")&&-1===I.indexOf("Chrome")&&((k=performance.getEntriesByType("navigation"))&&k.length>0?h[k[0].type]===h.reload:window.performance&&1===performance.navigation.type)&&te(),function(){if(!performance)return!1;if(!window.PerformanceNavigationTiming)return performance.navigation.redirectCount>0;var e=performance.getEntriesByType("navigation");return!!e.length&&e[0].redirectCount>0}()&&function(){var e=n[t].controller;e&&e.postMessage({type:"report-redirect"})}()):q(m);var k;var I;if(R())return void me();if(!y)return ge();C=!1,w((function(){C||(C=!0,ge())})),E=function(){setTimeout((function(){C||(C=!0,ge())}),1e3)},"loading"===e.readyState?e.addEventListener("DOMContentLoaded",E):setTimeout(E,0);var C,E}()}(document,navigator,"serviceWorker","undefined"!=typeof speedKit?speedKit:config,"SNIPPET_LOADED");

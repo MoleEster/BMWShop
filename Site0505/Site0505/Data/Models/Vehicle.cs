@@ -8,6 +8,7 @@ namespace Site0505.Data.Models
 {
     public class Vehicle : BaseModel
     {
+        public string TopImg { get; set; }
         public string Img { get; set; }
         public string Description { get; set; }
         public string Specifications { get; set; }

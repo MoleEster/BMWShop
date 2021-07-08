@@ -28,7 +28,8 @@ namespace Site0505.Data.Database
                         Category = Categories["X"],
                         Price = 2480000,
                         Specifications = "Мощность двигателя: 140 л.с\nРасход топлива: 6,2 л/100 км\nРазгон (0–100 км/ч): 9,6 с",
-                        Img = "/img/BMWX1Front.jpg"
+                        Img = "/img/BMWX1Front.jpg",
+                        TopImg= "/img/X1Top.jpg"
                     },
                     new Vehicle
                     {
@@ -40,7 +41,8 @@ namespace Site0505.Data.Database
                         Category = Categories["3"],
                         Price = 3700000,
                         Specifications = "Мощность двигателя: 156 л.с\nРасход топлива: 6,3 л/100 км\nРазгон (0–100 км/ч): 8,4 с",
-                        Img = "/img/BMW3SERIESFront.jpg"
+                        Img = "/img/BMW3SERIESFront.jpg",
+                        TopImg = "/img/3Top.jpg"
                     },
                     new Vehicle
                     {
@@ -52,6 +54,7 @@ namespace Site0505.Data.Database
                         Price = 8500000,
                         Specifications = "Запас хода 630 км\nРазгон (0–100 км/ч): 4,6 с",
                         Img = "/img/BMWIXFront.jpg",
+                        TopImg = "/img/IXTop.jpg"
                     },
                     new Vehicle
                     {
@@ -65,7 +68,8 @@ namespace Site0505.Data.Database
                        Category = Categories["M"],
                        Price = 9600000,
                        Specifications ="Мощность двигателя: 625 л.с.\nРасход топлива: 10,6 л/100 км\nРазгон (0–100 км/ч): 3,3 с",
-                       Img = "/img/BMWM5Front.png"
+                       Img = "/img/BMWM5Front.png",
+                       TopImg = "/img/XM5Top.jpg"
                     }                     
                     ) ;
             }

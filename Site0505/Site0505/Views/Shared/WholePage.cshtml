@@ -2,25 +2,47 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width" />
-    <link rel="stylesheet" type="text/css" href="~/css/StyleHome.css" />
+    <link rel="stylesheet" type="text/css" href="~/css/StyleMain.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
 </head>
 <body>
-        <div id="header" class="header">
-            <div class="grey-border-header">
-                <h2 class="header-item"><a href="#popup_1" class="popup-link">Автомобили</a></h2>
-                <h2 class="header-item"><a>Покупка</a></h2>
-                <h2 class="header-item"><a>Владельцам</a></h2>
-                <h2 class="header-item"><a>BMW с пробегом</a></h2>
-                <h2 class="header-item"><a>BMW Россия</a></h2>
-                <h2 class="header-item"><a>Владельцам</a></h2>
-                <div class="header-item">
-                    <img class="icon-search" src="~/img/search-solid.svg" />
+    <header id="header">
+        <div class="grey-border-header">
+            <a href="#popup_1" class="header-item popup-link">Автомобили</a>
+            <a class="header-item">Покупка</a>
+            <a class="header-item">Владельцам</a>
+            <a class="header-item">BMW с пробегом</a>
+            <a class="header-item">BMW Россия</a>
+            <a class="header-item">Владельцам</a>
+            <div class="header-item">
+                <img class="icon-search" src="~/img/search-solid.svg" />
+            </div>
+        </div>
+    </header>
+    <div class="main">
+        @RenderBody()
+    </div>
+    <div id="popup_1" class="popup">
+        <div class="popup-body">
+            <div class="popup-content">
+                <a href="#" class="popup-close close_popup">X</a>
+                <div class="popup-title">Проба</div>
+                <div class="popup-text">
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/X">X</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/2">2</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/3">3</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/4">4</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/5">5</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/6">6</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/7">7</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/8">8</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/I">I</a></p>
+                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/M">M</a></p>
                 </div>
             </div>
         </div>
-        <div class="main">
-            @RenderBody()
-        </div>
-    </body>
+        <script src="~/js/startPageScript.js"></script>
+    </div>
+</body>
 </html>
+

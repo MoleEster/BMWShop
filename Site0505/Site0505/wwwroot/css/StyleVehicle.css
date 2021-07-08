@@ -1,0 +1,24 @@
+﻿    header.open {
+        transform: perspective(600px) translate(0px,0%) rotate(0deg);
+        background-color: #fff;
+    }
+
+.vehicle-page h2 {
+    margin-top: 10.5rem;
+    margin-left: 10.5rem;
+    color: white;
+    font-stretch: narrower;
+    font-family: Light;
+    font-size: 3rem;
+    line-height: 1.5rem;
+    font-weight: 200;
+    position: absolute;
+}
+
+.vehicle-page p {
+    color: black;
+    font-size: 1.5rem;
+    font-family: Light;
+    font-weight: 100;
+    position: absolute;
+}

@@ -1,6 +1,5 @@
-﻿@model HomePageViewModel
-
-<head>
+﻿<head>
+    <meta name="viewport" content="width=device-width" />
     <link rel="stylesheet" type="text/css" href="~/css/StyleHome.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
 </head>
@@ -20,22 +19,3 @@
         </div>
     </div>
 </div>
-
-<div id="popup_1" class="popup">
-    <div class="popup-body">
-        <div class="popup-content">
-            <a href="#" class="popup-close close_popup">X</a>
-            <div class="popup-title">Проба</div>
-            <div class="popup-text">
-                @{
-                    foreach (Category category in Model.Categories)
-                    {
-
-                        @Html.Partial("CardCategory", category)
-                    }
-                }
-            </div>
-        </div>
-    </div>
-</div>
-<script src="~/js/startPageScript.js"></script>

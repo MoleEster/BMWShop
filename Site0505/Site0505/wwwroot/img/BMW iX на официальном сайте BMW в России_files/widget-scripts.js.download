@@ -1,0 +1,396 @@
+"use strict";
+
+function BMWLiveChatWidget() {
+    this._panels = [];
+    this._activePanel = false;
+    this._online = false;
+}
+
+BMWLiveChatWidget.prototype.initPanels = function () {
+    var i, funcName;
+
+    this._activePanel = false;
+
+    if (this._online) {
+        this._panels = {
+            'terms': '.bmw-nx-terms',
+            'chat': '.bmw-nx-livechat',
+            'prechat': '.bmw-nx-prechat'
+        };
+    } else {
+        this._panels = {
+            'terms': '.bmw-nx-terms',
+            'form': '.bmw-nx-offline',
+            'sent': '.bmw-nx-offlinesent'
+        };
+    }
+
+    for(i in this._panels) {
+        if (!this._panels.hasOwnProperty(i)) continue;
+        this._panels[i] = scj(this._panels[i]);
+
+        funcName = 'initPanel_' + i;
+        if (typeof this[funcName] == "function") {
+            this[funcName](this._panels[i]);
+        }
+    }
+};
+
+/**
+ *
+ * @param {boolean} online
+ */
+BMWLiveChatWidget.prototype.init = function (online) {
+    var visitorName;
+
+    this._online = online;
+    this.initPanels();
+
+    // Regardless current status navigate to the
+    // Terms panel if not agreed yet
+    //if (!online && !this.agreementFulfilled()) {
+    //    this.navigateTo('terms');
+    //} else {
+        if (online) {
+            // Check for name
+            //visitorName = scj.trim(nsc_Visitor.getParameter('nick'));
+            //if (!visitorName.length || !nsc_Visitor.getLastMessage('visitor')) {
+            //    this.navigateTo('prechat');
+            //} else {
+                this.navigateTo('chat');
+            //}
+        } else {
+            this.navigateTo('form');
+        }
+    //}
+    
+};
+
+BMWLiveChatWidget.prototype.navigateTo = function (panelName) {
+    var funcName, panel;
+
+    if (!this._panels.hasOwnProperty(panelName)) {
+        throw 'No panel to navigate to';
+    }
+
+    if (this._activePanel) {
+        funcName = 'closePanel_' + panelName;
+        if (typeof this[funcName] === "function") {
+            this[funcName](this._activePanel);
+        }
+
+        this._activePanel.removeClass('bmw-nx-active');
+    }
+
+    panel = this._panels[panelName];
+    this._activePanel = panel.addClass('bmw-nx-active');
+
+    funcName = 'openPanel_' + panelName;
+    if (typeof this[funcName] === "function") {
+        this[funcName](panel);
+    }
+};
+
+BMWLiveChatWidget.prototype.getFromLocalStorage = function(key, defaultValue, type) {
+    var value, i, positiveValues;
+
+    if (typeof defaultValue == "undefined") {
+        defaultValue = null;
+    }
+
+    if (!("localStorage" in window)) return defaultValue;
+    if (!(typeof localStorage == "object")) return defaultValue;
+    if (!(typeof localStorage.getItem == "function")) return defaultValue;
+
+    value = localStorage.getItem('bmw-nx-' + key);
+    if (value === null) return defaultValue;
+
+    // Cast if necessary
+    switch (type) {
+        case 'bool':
+            positiveValues = [1, '1', true, 'true'];
+            for (i = 0; i < positiveValues.length; i++) {
+                if (value !== positiveValues[i]) continue;
+                return true;
+            }
+            return false;
+        default:
+            break;
+    }
+
+    return value;
+};
+
+BMWLiveChatWidget.prototype.putToLocalStorage = function(sKey, mValue) {
+
+    if (!("localStorage" in window)) return false;
+    if (!(typeof localStorage == "object")) return false;
+    if (!(typeof localStorage.setItem == "function")) return false;
+
+    try {
+        localStorage.setItem('bmw-nx-' + sKey, mValue);
+
+        return true;
+    } catch(e) {}
+
+    return false;
+};
+
+BMWLiveChatWidget.prototype.initPanel_sent = function (panel) {
+    var _this = this;
+    panel.find('.bmw-nx-back').click(function () {
+        _this.navigateTo('form');
+        return false;
+    });
+};
+
+BMWLiveChatWidget.prototype.openPanel_form = function (panel) {
+    panel.find('input').add(panel.find('.label-checkbox')).removeClass('bmw-nx-error');
+};
+
+BMWLiveChatWidget.prototype.initPanel_terms = function(panel) {
+    var agreeInfo, agreeAdvert, checkboxInfo, checkboxAdvert, widget;
+
+    agreeInfo = this.getFromLocalStorage('agree-personal-info', false, 'bool');
+    agreeAdvert = this.getFromLocalStorage('agree-advert', false, 'bool');
+
+    checkboxInfo = panel.find('input[name="terms"]');
+    checkboxAdvert = panel.find('input[name="sms_terms"]');
+
+    if (agreeInfo) checkboxInfo.attr('checked', 'checked');
+    if (agreeAdvert) checkboxAdvert.attr('checked', 'checked');
+
+    widget = this;
+    checkboxInfo.change(function () {
+        widget.putToLocalStorage('agree-personal-info', scj(this).is(':checked'));
+        widget.terms_checkAgreement();
+    });
+    checkboxAdvert.change(function () {
+        widget.putToLocalStorage('agree-advert', scj(this).is(':checked'));
+        widget.terms_checkAgreement();
+    });
+};
+
+BMWLiveChatWidget.prototype.initPanel_prechat = function(panel) {
+    var widget;
+
+    widget = this;
+    panel.find('.bmw-nx-prechat-start').click(widget.prechat_startChat.bind(widget));
+    panel.find('[name="prechat_message"]').on('keyup', function(event) {
+        if (event.keyCode === 13) widget.prechat_startChat();
+    });
+};
+
+BMWLiveChatWidget.prototype.openPanel_prechat = function (panel) {
+    // When panel is opened - clear errors and message from textarea
+    panel.find('input, textarea').removeClass('bmv-nx-error');
+};
+
+BMWLiveChatWidget.prototype.openPanel_chat = function(panel) {
+    //panel.siblings('.bmw-nx-header').find('.bmw-nx-label').text('Эксперт BMW');
+    panel.siblings('.bmw-nx-header').find('.bmw-nx-label').hide()
+        .filter('.bmw-nx-chat-header').show();
+};
+
+BMWLiveChatWidget.prototype.closePanel_chat = function(panel) {
+    //panel.siblings('.bmw-nx-header').find('.bmw-nx-label').text('Чат с Экспертом BMW');
+    panel.siblings('.bmw-nx-header').find('.bmw-nx-label').hide()
+        .not('.bmw-nx-chat-header').show();
+};
+
+BMWLiveChatWidget.prototype.prechat_checkComplete = function() {
+    var nick, nickField, message, messageField, ok;
+
+    ok = true;
+
+    nickField = this._activePanel.find('#nsc_name');
+    nick = scj.trim(nsc_Visitor.getParameter('nick'));
+    if (!nick.length) {
+        nickField.addClass('bmw-nx-error');
+        ok = false;
+    }
+
+    messageField = this._activePanel.find('[name="prechat_message"]');
+    message = scj.trim(messageField.val());
+    if (!message.length) {
+        messageField.addClass('bmw-nx-error');
+        ok = false;
+    }
+
+    if (ok) return true;
+
+    this._activePanel.find('.bmw-nx-error').first().focus();
+
+};
+
+BMWLiveChatWidget.prototype.prechat_startChat = function () {
+    if (!this.prechat_checkComplete()) return;
+    // Send message
+    scj('#nsc_message').val(scj.trim(this._activePanel.find('[name="prechat_message"]').val()));
+    scj('#nsc_en').click();
+    this.navigateTo('chat');
+};
+
+BMWLiveChatWidget.prototype.initPanel_form = function (panel) {
+    // Double-purpose field removed with Sep 19 changes
+    /*panel.find('input[name="contact"]').change(function() {
+        var value;
+
+        value = scj(this).val();
+        if (value.match(/^.+@.+\..+/) !== null) {
+            // Email detected
+            nsc_Visitor.setParameter('email', value);
+        } else {
+            // Handle as phone number
+            nsc_Visitor.setParameter('phone', value);
+        }
+    });*/
+};
+
+BMWLiveChatWidget.prototype.checkRequired = function () {
+
+};
+
+BMWLiveChatWidget.prototype.terms_checkAgreement = function () {
+    if (this.agreementFulfilled()) {
+        this.navigateTo(this._online ? 'prechat' : 'form');
+    }
+};
+
+BMWLiveChatWidget.prototype.agreementFulfilled = function () {
+    var agreeInfo, agreeAdvert;
+
+    agreeInfo = this.getFromLocalStorage('agree-personal-info', false, 'bool');
+    agreeAdvert = this.getFromLocalStorage('agree-advert', false, 'bool');
+
+    return agreeInfo && agreeAdvert;
+};
+'use strict';
+
+(function (w) {
+    var gradeLookup = [
+        'Вы поставили консультации оценку ужасно',
+        'Вы поставили консультации оценку плохо',
+        'Вы поставили консультации оценку удовлетворительно',
+        'Вы поставили консультации оценку хорошо',
+        'Вы поставили консультации оценку отлично'
+    ];
+    w.bmwLiveChatWidget = new BMWLiveChatWidget();
+
+    w.nsc_API = {
+        onBeforeInit: function (data) {
+            nsc_Visitor.__ms.r.s = gradeLookup;
+            nsc_Visitor.__ms.r.r = "Пожалуйста, оцените консультацию";
+            return true;
+        },
+        onInit: function (data) {
+            var widget = w.bmwLiveChatWidget;
+            widget.init(data.status === 1);
+            scj('.nx-bmw-chat-button')
+                .off('netroxopenwidget')
+                .on('click.netroxopenwidget', function () {
+                    nsc_Visitor.open();
+                });
+			
+			/*if (window.location.href.indexOf("calculator-test.html") == -1) {
+				scj('.nx-bmw-chat-button').addClass('nx-bmw-visible');
+				
+			} */
+
+			window._calltouchChatClick = function(){
+				nsc_Visitor.open();
+			};
+			
+			
+			//.addClass('nx-bmw-visible');
+        },
+        onOfflineMessageSend: function() {
+            var ok = true,
+                nameInput = scj('#nsc_name'),
+                emailInput = scj('#nsc_email'),
+                emailVal = scj.trim(emailInput.val()),
+                messageTextarea = scj('#nsc_message'),
+                termsCheck = scj('.bmw-nx-offline input[name="terms"]');
+
+            nameInput.removeClass('bmw-nx-error');
+            emailInput.removeClass('bmw-nx-error');
+            messageTextarea.removeClass('bmw-nx-error');
+            termsCheck.parent('.label-checkbox').removeClass('bmw-nx-error');
+
+            if (!scj.trim(nameInput.val()).length) {
+                nameInput.addClass('bmw-nx-error').focus();
+                ok = false;
+            }
+
+            if (!emailVal.length || emailVal.indexOf('@') === -1) {
+                emailInput.addClass('bmw-nx-error');
+                if (ok) emailInput.focus();
+                ok = false;
+            }
+
+            if (!scj.trim(messageTextarea.val()).length) {
+                messageTextarea.addClass('bmw-nx-error');
+                if (ok) messageTextarea.focus();
+                ok = false;
+            }
+
+            if (!termsCheck.is(':checked')) {
+                termsCheck.parent('.label-checkbox').addClass('bmw-nx-error');
+                ok = false;
+            }
+
+            if (ok) {
+                var widget = w.bmwLiveChatWidget;
+                widget.navigateTo('sent');
+            }
+
+            return ok;
+        },
+/*        onOfflineMessageSuccess: function () {
+            var widget = w.bmwLiveChatWidget;
+            widget.navigateTo('sent');
+        }*/
+    };
+
+
+
+    (function (d) {
+        if (document.readyState !== "loading") {
+            initChat();
+        }
+        d.addEventListener('DOMContentLoaded', initChat);
+
+        function initChat(){
+            var styleUrl, siteId, templateId, head, link, chatScript, body, div;
+
+            styleUrl = 'https://cdn-static.netrox.sc/client-styles/bmw/widget-styles.min.css';
+            siteId = 'ACE8B77D-53C9-533D-14BB-1B76A5932A9E';
+            //styleUrl = '/bmw-widget/dist/styles/widget-styles.min.css';
+            //siteId = '3506A1AE-BFDC-6B1A-4BBB-D2A4413B82DC';
+            templateId = 1;
+
+            head  = d.getElementsByTagName('head')[0];
+
+            // Add stylesheet
+            link = d.createElement('link');
+            link.rel  = 'stylesheet';
+            link.type = 'text/css';
+            link.href = styleUrl;
+            link.media = 'all';
+            head.appendChild(link);
+
+            // Insert button
+            body = d.getElementsByTagName('body')[0];
+            div = d.createElement('div');
+            div.className = "nx-bmw-chat-button";
+            body.appendChild(div);
+
+            // Add JS script
+            chatScript = d.createElement('script');
+            chatScript.type = "text/javascript";
+            chatScript.src = "https://c.netrox.sc/" + siteId + "/c.js?tmpl=" + templateId;
+            chatScript.async = true;
+            head.appendChild(chatScript);
+        }
+    })(document);
+})(window);
