@@ -9,5 +9,8 @@ namespace Site0505.ViewModel
     public class HomePageViewModel
     {
         public IEnumerable<Category> Categories { get; set; }
+        public IEnumerable<Vehicle> Vehicles { get; set; }
+        public Vehicle vehicle { get; set; }
+
     }
 }

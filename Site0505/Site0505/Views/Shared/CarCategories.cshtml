@@ -1,0 +1,15 @@
+﻿@model HomePageViewModel
+@using (Html.BeginForm("Categories", "HomePage", FormMethod.Get))
+{
+    <ul class="categoriesList">
+        <li data-series="AllVehicles">
+            <input type="button" value=AllVehicles class="categoryButton" />
+        </li>
+        @foreach (var item in Model.Categories)
+        {
+            <li data-series=@item.Name category="categoryButtonLi">
+                @Html.Partial("ExactCategory", item)
+            </li>
+        }
+    </ul>
+}

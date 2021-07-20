@@ -20,8 +20,8 @@ namespace Site0505.Controllers
             //this.allCategories = allCategories;
             this.allVehicles = allVehicles;
         }
-
-        [Route("Home/Categories/{category}")]
+        [HttpGet]
+        [Route(@"CategoryPage/Categories/{category}")]
         public ViewResult Categories(string category)
         {
             string _category = category;

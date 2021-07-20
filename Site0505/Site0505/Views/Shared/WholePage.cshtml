@@ -20,27 +20,38 @@
         </div>
     </header>
     <div class="main">
+
         @RenderBody()
     </div>
     <div id="popup_1" class="popup">
         <div class="popup-body">
             <div class="popup-content">
                 <a href="#" class="popup-close close_popup">X</a>
-                <div class="popup-title">Проба</div>
+                <div class="popup-title">
+                    <div class="popup-title-layer">
+                        <nav>
+                            @{
+                                Html.RenderPartial("CarCategories");
+
+                            }
+                        </nav>
+                    </div>
+                </div>
                 <div class="popup-text">
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/X">X</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/2">2</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/3">3</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/4">4</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/5">5</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/6">6</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/7">7</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/8">8</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/I">I</a></p>
-                    <p><a class="btn btn-warning" href="https://localhost:44335/Home/Categories/M">M</a></p>
+                    @{
+                        Html.RenderPartial("CarsAndCategories");
+                    }
                 </div>
             </div>
         </div>
+        <script>
+            $(document).ready(function () {
+                $('.categoryButton').click(function (e) {
+                    var message = $(this).parents('li').data("series");
+                    $(".popup-text").load("/HomePage/CategoryContent", { category: message });
+                })
+            })
+        </script>
         <script src="~/js/startPageScript.js"></script>
     </div>
 </body>

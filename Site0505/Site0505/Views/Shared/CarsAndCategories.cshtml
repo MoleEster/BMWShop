@@ -1,0 +1,9 @@
+﻿@model HomePageViewModel
+<div>
+    @{
+        foreach (Vehicle vehicle in Model.Vehicles)
+        {
+            @Html.Partial("PopupVehicle", vehicle)
+        }
+    }
+</div>
